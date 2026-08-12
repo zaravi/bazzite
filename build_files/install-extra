@@ -1,0 +1,52 @@
+#!/usr/bin/bash
+
+set -eoux pipefail
+
+for repo in \
+    "https://copr.fedorainfracloud.org/coprs/scottames/ghostty/repo/fedora-${FEDORA_VERSION}/scottames-ghostty-fedora-${FEDORA_VERSION}.repo" \
+    "https://copr.fedorainfracloud.org/coprs/lihaohong/yazi/repo/fedora-${FEDORA_VERSION}/lihaohong-yazi-fedora-${FEDORA_VERSION}.repo" \
+    "https://copr.fedorainfracloud.org/coprs/atim/starship/repo/fedora-${FEDORA_VERSION}/atim-starship-fedora-${FEDORA_VERSION}.repo" \
+    "https://copr.fedorainfracloud.org/coprs/sneexy/zen-browser/repo/fedora-${FEDORA_VERSION}/sneexy-zen-browser-fedora-${FEDORA_VERSION}.repo" \
+    "https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo" \
+    "https://repository.mullvad.net/rpm/stable/mullvad.repo" \
+    "https://copr.fedorainfracloud.org/coprs/yalter/niri-git/repo/fedora-${FEDORA_VERSION}/yalter-niri-fedora-${FEDORA_VERSION}.repo"; do
+    dnf5 -y config-manager addrepo --overwrite --from-repofile="$repo"
+done && unset -v repo
+
+dnf5 config-manager setopt skip_if_unavailable=1
+
+dnf5 --setopt=retries=5 --setopt=timeout=120 -y install \
+    ghostty \
+    yazi \
+    starship \
+    zen-browser \
+    brave-browser \
+    mullvad-vpn \
+    mullvad-browser \
+    niri
+
+# These are in the fedora repos. Keeping these here because they're related to the extra stuff in here.
+dnf5 --setopt=retries=5 --setopt=timeout=120 -y install \
+    noctalia \
+    nu \
+    atuin \
+    zoxide \
+    helix \
+    qemu \
+    virt-manager \
+    virt-viewer
+
+rm -f /opt
+mkdir -p /opt
+
+# Firefox has been replaced with Mullvad and Zen.
+dnf5 -y remove \
+    firefox || true
+
+rm -f /etc/yum.repos.d/*ghostty*.repo \
+    /etc/yum.repos.d/*yazi*.repo \
+    /etc/yum.repos.d/*starship*.repo \
+    /etc/yum.repos.d/*zen-browser*.repo \
+    /etc/yum.repos.d/brave-browser.repo \
+    /etc/yum.repos.d/mullvad.repo \
+    /etc/yum.repos.d/*niri*.repo
