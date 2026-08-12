@@ -2,6 +2,9 @@
 
 set -eoux pipefail
 
+rm -f /opt
+mkdir -p /opt
+
 for repo in \
     "https://copr.fedorainfracloud.org/coprs/scottames/ghostty/repo/fedora-${FEDORA_VERSION}/scottames-ghostty-fedora-${FEDORA_VERSION}.repo" \
     "https://copr.fedorainfracloud.org/coprs/lihaohong/yazi/repo/fedora-${FEDORA_VERSION}/lihaohong-yazi-fedora-${FEDORA_VERSION}.repo" \
@@ -36,9 +39,6 @@ dnf5 -y install \
     qemu \
     virt-manager \
     virt-viewer
-
-rm -f /opt
-mkdir -p /opt
 
 # Firefox has been replaced with Mullvad and Zen.
 dnf5 -y remove \
