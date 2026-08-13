@@ -12,7 +12,7 @@ for repo in \
     "https://copr.fedorainfracloud.org/coprs/sneexy/zen-browser/repo/fedora-${FEDORA_VERSION}/sneexy-zen-browser-fedora-${FEDORA_VERSION}.repo" \
     "https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo" \
     "https://repository.mullvad.net/rpm/stable/mullvad.repo" \
-    "https://copr.fedorainfracloud.org/coprs/yalter/niri-git/repo/fedora-${FEDORA_VERSION}/yalter-niri-fedora-${FEDORA_VERSION}.repo"; do
+    "https://copr.fedorainfracloud.org/coprs/yalter/niri-git/repo/fedora-${FEDORA_VERSION}/yalter-niri-fedora-${FEDORA_VERSION}.repo"; \
     "https://copr.fedorainfracloud.org/coprs/aflyhorse/libjpeg/repo/fedora-${FEDORA_VERSION}/aflyhorse-libjpeg-fedora-${FEDORA_VERSION}.repo"; do
     dnf5 -y config-manager addrepo --overwrite --from-repofile="$repo"
 done
