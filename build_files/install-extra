@@ -38,7 +38,20 @@ cd bitwig-fedora
 ./bitwig-rpm.sh || true
 dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
 ./bitwig-rpm.sh --beta || true
-dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
+BETA_DEB=$(ls ./rpmbuild/SOURCES/bitwig-studio-*.deb)
+rm -rf /tmp/bitwig-beta
+mkdir -p /tmp/bitwig-beta
+ar x --output /tmp/bitwig-beta "$BETA_DEB"
+tar axf /tmp/bitwig-beta/data.tar.* -C /tmp/bitwig-beta
+mv /tmp/bitwig-beta/opt/bitwig-studio /opt/bitwig-studio-beta
+ln -sf /opt/bitwig-studio-beta/bitwig-studio /usr/bin/bitwig-studio-beta
+install -Dm644 /tmp/bitwig-beta/usr/share/applications/com.bitwig.BitwigStudio.desktop /usr/share/applications/com.bitwig.BitwigStudioBeta.desktop
+sed -i -e 's|^Exec=.*|Exec=bitwig-studio-beta|' \
+    -e 's|^TryExec=.*|TryExec=bitwig-studio-beta|' \
+    -e 's|^Name=.*|Name=Bitwig Studio (Beta)|' \
+    -e 's|/opt/bitwig-studio|/opt/bitwig-studio-beta|g' \
+    /usr/share/applications/com.bitwig.BitwigStudioBeta.desktop
+rm -rf /tmp/bitwig-beta
 cd /
 rm -rf /bitwig-fedora
 
