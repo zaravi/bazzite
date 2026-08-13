@@ -1,0 +1,126 @@
+#!/usr/bin/bash
+
+set -eoux pipefail
+
+dnf5 -y install \
+    git \
+    cmake \
+    ninja-build \
+    meson \
+    gcc \
+    gcc-c++ \
+    make \
+    rust \
+    cargo \
+    jq \
+    python3 \
+    pkgconf-pkg-config \
+    python3-flake8 \
+    clang-devel \
+    desktop-file-utils \
+    glib2-devel \
+    gettext-devel \
+    openssl-devel \
+    gtk4-devel \
+    libadwaita-devel \
+    vte291-gtk4-devel \
+    openxr-devel \
+    vulkan-headers \
+    vulkan-loader-devel \
+    shaderc-devel \
+    glslang \
+    glslang-devel \
+    libglvnd-devel \
+    libdrm-devel \
+    libX11-devel \
+    libxcb-devel \
+    wayland-devel \
+    wayland-protocols-devel \
+    eigen3-devel \
+    libusb1-devel \
+    systemd-devel \
+    hidapi-devel \
+    polkit-devel \
+    libbsd-devel
+
+# Explicit runtimes so cleanup can't cascade-remove them.
+dnf5 -y install \
+    gtk4 \
+    libadwaita \
+    vte291-gtk4 \
+    openxr \
+    vulkan-loader \
+    shaderc
+
+git clone https://gitlab.freedesktop.org/monado/utilities/xr-hardware.git
+cd xr-hardware
+make
+make install
+cd /
+rm -rf /xr-hardware
+
+git clone https://gitlab.freedesktop.org/monado/monado.git
+cd monado
+meson setup build --prefix=/usr -Dservice=true -Dsystemd=enabled
+meson compile -C build
+meson install -C build
+setcap cap_sys_nice+eip /usr/bin/monado-service
+cd /
+rm -rf /monado
+
+git clone https://github.com/Supreeeme/xrizer.git
+cd xrizer
+cargo xbuild --release
+mkdir -p /usr/lib/xrizer
+cp -rL target/release/bin /usr/lib/xrizer/
+cd /
+rm -rf /xrizer /root/.cargo
+
+git clone https://gitlab.com/gabmus/envision.git
+cd envision
+meson setup build --prefix=/usr -Dprofile=release -Dbuildtype=release
+meson compile -C build
+meson install -C build
+cd /
+rm -rf /envision
+
+dnf5 -y remove \
+    git \
+    cmake \
+    ninja-build \
+    meson \
+    gcc \
+    gcc-c++ \
+    make \
+    rust \
+    cargo \
+    jq \
+    python3 \
+    pkgconf-pkg-config \
+    python3-flake8 \
+    clang-devel \
+    desktop-file-utils \
+    glib2-devel \
+    gettext-devel \
+    openssl-devel \
+    gtk4-devel \
+    libadwaita-devel \
+    vte291-gtk4-devel \
+    openxr-devel \
+    vulkan-headers \
+    vulkan-loader-devel \
+    shaderc-devel \
+    glslang \
+    glslang-devel \
+    libglvnd-devel \
+    libdrm-devel \
+    libX11-devel \
+    libxcb-devel \
+    wayland-devel \
+    wayland-protocols-devel \
+    eigen3-devel \
+    libusb1-devel \
+    systemd-devel \
+    hidapi-devel \
+    polkit-devel \
+    libbsd-devel
