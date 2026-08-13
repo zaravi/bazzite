@@ -35,10 +35,10 @@ dnf5 -y install \
 dnf5 -y install rpm-build
 git clone https://github.com/teervo/bitwig-fedora.git
 cd bitwig-fedora
-./bitwig-rpm.sh
-dnf5 -y install ./bitwig-studio-*.rpm
-./bitwig-rpm.sh --beta
-dnf5 -y install ./bitwig-studio-*.rpm
+./bitwig-rpm.sh || true
+dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
+./bitwig-rpm.sh --beta || true
+dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
 cd /
 rm -rf /bitwig-fedora
 
