@@ -13,6 +13,7 @@ for repo in \
     "https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo" \
     "https://repository.mullvad.net/rpm/stable/mullvad.repo" \
     "https://copr.fedorainfracloud.org/coprs/yalter/niri-git/repo/fedora-${FEDORA_VERSION}/yalter-niri-fedora-${FEDORA_VERSION}.repo"; do
+    "https://copr.fedorainfracloud.org/coprs/aflyhorse/libjpeg/repo/fedora-${FEDORA_VERSION}/aflyhorse-libjpeg-fedora-${FEDORA_VERSION}.repo"; do
     dnf5 -y config-manager addrepo --overwrite --from-repofile="$repo"
 done
 unset -v repo
@@ -28,6 +29,18 @@ dnf5 -y install \
     mullvad-vpn \
     mullvad-browser \
     niri
+
+# Install both stable and beta versions of Bitwig Studio, this could be moved to another file in the future, but depends on libjpeg.so.8 from the copr here.
+# It'd be best to separate concerns and have install-bitwig, install-virtualization, etc. files instead of one install-extra. There's not too much here to do that yet.
+dnf5 -y install rpm-build
+git clone https://github.com/teervo/bitwig-fedora.git
+cd bitwig-fedora
+./btwig-rpm.sh
+dnf5 -y install ./bitwig-studio-*.rpm
+./btwig-rpm.sh --beta
+dnf5 -y install ./bitwig-studio-*.rpm
+cd /
+rm -rf /bitwig-fedora
 
 # These are in the fedora repos. Keeping these here because they're related to the extra stuff in here.
 dnf5 -y install \
@@ -45,6 +58,7 @@ systemctl enable libvirtd.service
 
 # Firefox has been replaced with Mullvad and Zen.
 dnf5 -y remove \
+    rpm-build \
     firefox || true
 
 rm -f /etc/yum.repos.d/*ghostty*.repo \
@@ -53,4 +67,5 @@ rm -f /etc/yum.repos.d/*ghostty*.repo \
     /etc/yum.repos.d/*zen-browser*.repo \
     /etc/yum.repos.d/brave-browser.repo \
     /etc/yum.repos.d/mullvad.repo \
-    /etc/yum.repos.d/*niri*.repo
+    /etc/yum.repos.d/*niri*.repo \
+    /etc/yum.repos.d/*libjpg*.repo
