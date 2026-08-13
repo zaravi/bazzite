@@ -38,7 +38,7 @@ cd bitwig-fedora
 ./bitwig-rpm.sh || true
 dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
 ./bitwig-rpm.sh --beta || true
-BETA_DEB=$(ls ./rpmbuild/SOURCES/bitwig-studio-*.deb)
+BETA_DEB=$(ls ./rpmbuild/SOURCES/bitwig-studio-*beta*.deb)
 rm -rf /tmp/bitwig-beta
 mkdir -p /tmp/bitwig-beta
 ar x --output /tmp/bitwig-beta "$BETA_DEB"
