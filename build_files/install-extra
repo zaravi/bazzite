@@ -36,9 +36,12 @@ dnf5 -y install \
     atuin \
     zoxide \
     helix \
-    qemu \
+    qemu-kvm \
+    libvirt \
     virt-manager \
     virt-viewer
+
+systemctl enable libvirtd.service
 
 # Firefox has been replaced with Mullvad and Zen.
 dnf5 -y remove \
