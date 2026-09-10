@@ -32,17 +32,16 @@ dnf5 -y install \
 
 # Install both stable and beta versions of Bitwig Studio, this could be moved to another file in the future, but depends on libjpeg.so.8 from the copr here.
 # It'd be best to separate concerns and have install-bitwig, install-virtualization, etc. files instead of one install-extra. There's not too much here to do that yet.
-dnf5 -y install rpm-build
-git clone https://github.com/teervo/bitwig-fedora.git
+dnf5 -y install rpm-build cpio
+git clone https://github.com/yioannides/bitwig-fedora.git
 cd bitwig-fedora
 ./bitwig-rpm.sh || true
-dnf5 -y install ./rpmbuild/RPMS/x86_64/bitwig-studio-*.rpm
+dnf5 -y install ./bitwig-studio-*.rpm
 ./bitwig-rpm.sh --beta || true
-BETA_DEB=$(ls ./rpmbuild/SOURCES/bitwig-studio-*beta*.deb)
+BETA_RPM=$(ls "$PWD"/bitwig-studio-*beta*.rpm)
 rm -rf /tmp/bitwig-beta
 mkdir -p /tmp/bitwig-beta
-ar x --output /tmp/bitwig-beta "$BETA_DEB"
-tar axf /tmp/bitwig-beta/data.tar.* -C /tmp/bitwig-beta
+rpm2cpio "$BETA_RPM" | (cd /tmp/bitwig-beta && cpio -id --no-absolute-filenames)
 mv /tmp/bitwig-beta/opt/bitwig-studio /opt/bitwig-studio-beta
 ln -sf /opt/bitwig-studio-beta/bitwig-studio /usr/bin/bitwig-studio-beta
 install -Dm644 /tmp/bitwig-beta/usr/share/applications/com.bitwig.BitwigStudio.desktop /usr/share/applications/com.bitwig.BitwigStudioBeta.desktop
