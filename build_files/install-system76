@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+
+set -eoux pipefail
+
+echo "::group::Executing install-system76"
+trap 'echo "::endgroup::"' EXIT
+
+dnf5 -y copr enable szydell/system76
+
+dnf5 -y install \
+    system76-driver \
+    system76-firmware
+
+systemctl enable system76-firmware-daemon.service
+
+dnf5 -y copr disable szydell/system76

@@ -850,6 +850,14 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y copr disable ublue-os/staging && \
     /ctx/cleanup
 
+# Install System76 drivers
+RUN --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/log \
+    --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=tmpfs,dst=/tmp \
+    /ctx/install-system76 && \
+    /ctx/cleanup
+
 # Cleanup & Finalize
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
