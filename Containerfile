@@ -40,7 +40,7 @@ ARG NVIDIA_FLAVOR="${NVIDIA_FLAVOR:-nvidia-open}"
 FROM ghcr.io/ublue-os/akmods:${KERNEL_FLAVOR}-${FEDORA_VERSION}-${KERNEL_VERSION} AS akmods
 FROM ghcr.io/ublue-os/akmods-extra:${KERNEL_FLAVOR}-${FEDORA_VERSION}-${KERNEL_VERSION} AS akmods-extra
 FROM ghcr.io/ublue-os/akmods-${NVIDIA_FLAVOR}:${KERNEL_FLAVOR}-${FEDORA_VERSION}-${KERNEL_VERSION} AS akmods-nvidia
-FROM ghcr.io/ublue-os/brew:latest@sha256:2aaf87e3757466bc28d056505a651c7ca5c56fd28f6ff709b34f3f5dbc860e89 AS brew
+FROM ghcr.io/ublue-os/brew:latest@sha256:c201bc801e4828849e8e36c4adcb5c0f38d35ac3ff9546a0ecab0fd2beabf51f AS brew
 
 FROM scratch AS ctx
 COPY build_files /
@@ -141,26 +141,25 @@ RUN --mount=type=cache,dst=/var/cache \
         pipewire-config-raop \
         mesa-va-drivers && \
     declare -A toswap=( \
-        ["copr:copr.fedorainfracloud.org:ublue-os:bazzite-multilib"]="xorg-x11-server-Xwayland" \
         ["terra-mesa"]="mesa-filesystem" \
     ) && \
+     for repo in "${!toswap[@]}"; do \
+        for package in ${toswap[$repo]}; do dnf5 -y swap --from-repo=$repo $package $package; done; \
+    done && unset -v toswap repo package && \
+    dnf5 -y swap --allowerasing \
+        --repo terra-extras \
+            xorg-x11-server-Xwayland terra-xorg-x11-server-Xwayland && \
     dnf5 -y swap --allowerasing \
         --repo terra-extras \
             wireplumber terra-wireplumber && \
-    for repo in "${!toswap[@]}"; do \
-        for package in ${toswap[$repo]}; do dnf5 -y swap --from-repo=$repo $package $package; done; \
-    done && unset -v toswap repo package && \
     dnf5 versionlock add \
-        xorg-x11-server-Xwayland \
+        terra-xorg-x11-server-Xwayland \
         mesa-dri-drivers \
         mesa-filesystem \
         mesa-libEGL \
         mesa-libGL \
         mesa-libgbm \
-        mesa-vulkan-drivers \
-        NetworkManager \
-        NetworkManager-wifi \
-        NetworkManager-libnm && \
+        mesa-vulkan-drivers && \
     dnf5 --enable-repo=terra-mesa -y install \
         mesa-libEGL.i686 \
         intel-opencl \
@@ -196,8 +195,8 @@ RUN --mount=type=cache,dst=/var/cache \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=secret,id=GITHUB_TOKEN \
-    dnf5 -y install \
-        $(/ctx/ghcurl https://api.github.com/repos/ublue-os/cicpoffs/releases/latest | jq -r --arg name "cicpoffs-fc${FEDORA_VERSION}.rpm" '.assets[] | select(.name == $name).browser_download_url') && \
+    dnf5 -y install --enable-repo=terra --enable-repo=terra-extras \
+        cicpoffs && \
     dnf5 -y copr enable bieszczaders/kernel-cachyos-addons && \
     dnf5 -y install \
         scx-scheds \
@@ -303,8 +302,19 @@ RUN --mount=type=cache,dst=/var/cache \
     systemctl mask iscsi && \
     systemctl mask systemd-remount-fs.service && \
     systemctl mask fedora-atomic-desktop-appstream-cache-refresh && \
-    mkdir -p /usr/lib/extest/ && \
-    /ctx/ghcurl "$(/ctx/ghcurl https://api.github.com/repos/ublue-os/extest/releases/latest | jq -r '.assets[] | select(.name| test(".*so$")).browser_download_url')" -Lo /usr/lib/extest/libextest.so && \
+    mkdir -p /usr/lib/extest /usr/lib64/extest; \
+    EXTEST_RELEASE=$(/ctx/ghcurl https://api.github.com/repos/ublue-os/extest/releases/latest) && \
+    for asset in libextest.so libextest64.so; do \
+        url=$(jq -r --arg name "${asset}" \
+            '.assets[] | select(.name == $name).browser_download_url' <<< "${EXTEST_RELEASE}"); \
+        if [[ "${asset}" == "libextest64.so" ]]; then \
+            destination=/usr/lib64/extest/libextest.so; \
+        else \
+            destination=/usr/lib/extest/libextest.so; \
+        fi; \
+        /ctx/ghcurl "${url}" -Lo "${destination}"; \
+    done && \
+    unset -v EXTEST_RELEASE asset url destination && \
     /ctx/ghcurl "https://github.com/ykshek/Sunshine/raw/1347f9ef290c089b815cf186f7d361470bdb9ef7/src_assets/linux/misc/postinst" -Lo /usr/libexec/sunshine-postinst && \
     chmod +x /usr/libexec/sunshine-postinst && \
     setfattr -n user.component -v "extest" /usr/lib/extest/libextest.so && \
@@ -324,7 +334,8 @@ RUN --mount=type=cache,dst=/var/cache \
         dmemcg-booster && \
     if grep -q "kinoite" <<< "${BASE_IMAGE_NAME}"; then \
         dnf5 -y install \
-            plasma-foreground-booster-dmemcg \
+            plasma-foreground-booster-dmemcg && \
+        desktop-file-edit --set-key=Hidden --set-value=true /usr/share/applications/org.kde.foreground-booster.desktop \
     ; else \
         dnf5 -y swap \
         --repo terra-extras \
@@ -634,13 +645,26 @@ RUN --mount=type=cache,dst=/var/cache \
     systemctl enable sddm.service && \
     /ctx/cleanup
 
+# Install Steam Deck patched UPower
+RUN --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/log \
+    --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=tmpfs,dst=/tmp \
+    dnf5 -y swap --allowerasing \
+    --repo terra-extras \
+        upower terra-upower && \
+    dnf5 versionlock add \
+        terra-upower \
+        terra-upower-libs && \
+    /ctx/cleanup
+
 # Install new packages
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=cache,dst=/var/log \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
-    dnf5 -y install --enable-repo=terra \
+    dnf5 -y install --enable-repo=terra --enable-repo=terra-extras \
         jupiter-fan-control \
         jupiter-hw-support-btrfs \
         galileo-mura \
@@ -686,19 +710,6 @@ RUN --mount=type=cache,dst=/var/cache \
     ln -s /usr/bin/steamos-logger /usr/bin/steamos-info && \
     ln -s /usr/bin/steamos-logger /usr/bin/steamos-notice && \
     ln -s /usr/bin/steamos-logger /usr/bin/steamos-warning && \
-    /ctx/cleanup
-
-# Install Steam Deck patched UPower
-RUN --mount=type=cache,dst=/var/cache \
-    --mount=type=cache,dst=/var/log \
-    --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/tmp \
-    dnf5 -y swap \
-    --repo copr:copr.fedorainfracloud.org:ublue-os:bazzite \
-        upower upower && \
-    dnf5 versionlock add \
-        upower \
-        upower-libs && \
     /ctx/cleanup
 
 # Install Gamescope Session Supporting changes
