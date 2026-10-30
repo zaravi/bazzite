@@ -141,9 +141,10 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y remove \
         pipewire-config-raop \
         mesa-va-drivers && \
-    dnf5 -y remove \
-        mesa-vulkan-drivers.x86_64 \
-        mesa-libEGL.x86_64 && \
+    dnf5 -y swap --from-repo=terra-mesa \
+        mesa-vulkan-drivers mesa-vulkan-drivers && \
+    dnf5 -y swap --from-repo=terra-mesa \
+        mesa-libEGL mesa-libEGL && \
     dnf5 -y swap --allowerasing \
         --repo terra-extras \
             xorg-x11-server-Xwayland terra-xorg-x11-server-Xwayland && \
@@ -153,14 +154,12 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y --enable-repo=terra-mesa install \
         vulkan-loader.i686 \
         mesa-filesystem.i686 \
-        mesa-vulkan-drivers.x86_64 \
         mesa-vulkan-drivers.i686 \
-        mesa-libEGL.x86_64 \
         mesa-libEGL.i686 \
         intel-opencl \
         clinfo && \
     rpm -q mesa-vulkan-drivers.x86_64 mesa-vulkan-drivers.i686 \
-        mesa-libEGL.x86_64 mesa-libEGL.i686 >/dev/null || { \
+        mesa-libEGL.x86_64 mesa-libEGL.i686 libglvnd-egl >/dev/null || { \
         echo "FATAL: terra mesa multilib stack incomplete" >&2; exit 1; \
     } && \
     dnf5 versionlock add \
