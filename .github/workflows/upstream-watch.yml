@@ -1,0 +1,145 @@
+name: Watch Upstream Images
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check upstream digests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y skopeo
+          curl -fsSLo /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Resolve upstream refs
+        id: refs
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/build.yml
+
+          images="$(yq -r '.jobs.push-ghcr.strategy.matrix.image[]' "$workflow")"
+
+          refs=()
+          for image in $images; do
+            if [[ "$image" == *gnome* ]]; then
+              base=silverblue
+            else
+              base=kinoite
+            fi
+
+            fv=""
+            flavor=""
+            kernel=""
+            base_flavor=""
+            # Mirror GitHub matrix include semantics: entries without an
+            # "image" key apply to every combination; entries with an
+            # "image" key apply to that image. Keys absent from an entry are
+            # merged per-key (left untouched), like GitHub does.
+            for entry in $(yq -r '.jobs.push-ghcr.strategy.matrix.include[] | @json' "$workflow"); do
+              img="$(jq -r '.image // empty' <<<"$entry")"
+              if [[ -z "$img" || "$img" == "$image" ]]; then
+                for kv in fedora_version kernel_flavor kernel_version base_image_flavor; do
+                  val="$(jq -r --arg k "$kv" '.[$k] // empty' <<<"$entry")"
+                  [[ -z "$val" ]] && continue
+                  case "$kv" in
+                    fedora_version)    fv="$val" ;;
+                    kernel_flavor)     flavor="$val" ;;
+                    kernel_version)    kernel="$val" ;;
+                    base_image_flavor) base_flavor="$val" ;;
+                  esac
+                done
+              fi
+            done
+
+            if [[ -z "$fv" || -z "$flavor" || -z "$kernel" || -z "$base_flavor" ]]; then
+              echo "Could not resolve matrix values for $image; the build matrix may have changed" >&2
+              exit 1
+            fi
+
+            refs+=("ghcr.io/ublue-os/${base}-${base_flavor}:${fv}")
+            refs+=("ghcr.io/ublue-os/akmods:${flavor}-${fv}-${kernel}")
+            if [[ "$image" == *nvidia* ]]; then
+              if [[ "$image" == *nvidia-open* || "$image" == *-deck-nvidia* ]]; then
+                nvidia_flavor=nvidia-open
+              else
+                nvidia_flavor=nvidia-lts
+              fi
+              refs+=("ghcr.io/ublue-os/akmods-${nvidia_flavor}:${flavor}-${fv}-${kernel}")
+            fi
+          done
+
+          printf '%s\n' "${refs[@]}" | sort -u > current-refs.txt
+          echo "Watching the following upstream refs:"
+          cat current-refs.txt
+
+      - name: Restore previous state
+        uses: actions/cache/restore@0057852bfaa89a567456b5027591a299ec9f3ba1 # v4
+        with:
+          path: upstream-state
+          key: upstream-digests-${{ github.run_id }}
+          restore-keys: |
+            upstream-digests-
+
+      - name: Compare against last state
+        run: |
+          set -euo pipefail
+          if [[ -f upstream-state/digests.txt ]]; then
+            cp upstream-state/digests.txt last-digests.txt
+          else
+            touch last-digests.txt
+          fi
+
+      - name: Fetch current digests
+        run: |
+          set -euo pipefail
+          mkdir -p upstream-state
+          : > upstream-state/digests.txt
+          while read -r ref; do
+            digest="$(skopeo inspect "docker://${ref}" | jq -r '.Digest')"
+            echo "${ref}@${digest}" >> upstream-state/digests.txt
+          done < current-refs.txt
+
+      - name: Trigger build on change
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # First run (or state lost): seed state without dispatching a build.
+          if [[ ! -s last-digests.txt ]]; then
+            echo "No previous state; seeding without dispatching a build"
+            exit 0
+          fi
+          if diff -q last-digests.txt upstream-state/digests.txt >/dev/null; then
+            echo "Upstream unchanged, nothing to do"
+            exit 0
+          fi
+          echo "Upstream changed:"
+          diff last-digests.txt upstream-state/digests.txt || true
+          gh workflow run build.yml --ref "${GITHUB_REF_NAME}"
+          echo "Dispatched build.yml on ${GITHUB_REF_NAME}"
+
+      - name: Save state
+        # success(), not always(): a mid-fetch failure must not persist a
+        # partial digests.txt, which would cause a spurious dispatch later.
+        if: success() && hashFiles('upstream-state/digests.txt') != ''
+        uses: actions/cache/save@0057852bfaa89a567456b5027591a299ec9f3ba1 # v4
+        with:
+          path: upstream-state
+          key: upstream-digests-${{ github.run_id }}
