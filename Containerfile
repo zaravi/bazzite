@@ -448,6 +448,16 @@ RUN --mount=type=cache,dst=/var/cache \
     /ctx/install-extra && \
     /ctx/cleanup
 
+# Replace the stale copr-pinned kwin with Fedora's build so it matches the
+# rest of Plasma; see build_files/fix-kwin
+RUN --mount=type=cache,dst=/var/cache \
+    --mount=type=cache,dst=/var/cache/libdnf5 \
+    --mount=type=cache,dst=/var/log \
+    --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=tmpfs,dst=/tmp \
+    /ctx/fix-kwin && \
+    /ctx/cleanup
+
 # Build kwin-effects-better-blur-dx
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/cache/libdnf5 \

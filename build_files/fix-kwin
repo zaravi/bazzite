@@ -1,0 +1,24 @@
+#!/usr/bin/bash
+
+set -eoux pipefail
+
+COPR_REPO="copr:copr.fedorainfracloud.org:ublue-os:bazzite-multilib"
+
+rpm -q kwin >/dev/null 2>&1 || exit 0
+rpm -q plasma-workspace >/dev/null 2>&1 || exit 0
+
+kwin_version="$(rpm -q --qf '%{version}' kwin)"
+plasma_version="$(rpm -q --qf '%{version}' plasma-workspace)"
+
+if [[ "${kwin_version}" == "${plasma_version}" ]]; then
+    echo "kwin ${kwin_version} matches Plasma ${plasma_version}; nothing to do"
+    exit 0
+fi
+
+echo "kwin ${kwin_version} does not match Plasma ${plasma_version}; replacing copr kwin with Fedora's"
+
+dnf5 -y config-manager setopt "${COPR_REPO}.enabled=0"
+trap 'dnf5 -y config-manager setopt "${COPR_REPO}.enabled=1"' EXIT
+
+dnf5 -y upgrade kwin
+dnf5 -y install kwin-devel

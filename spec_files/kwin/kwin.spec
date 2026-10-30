@@ -1,5 +1,5 @@
 Name:    kwin
-Version: 6.6.5
+Version: 6.7.5
 Release: 1000
 Summary: KDE Window manager
 
@@ -17,8 +17,6 @@ Source0: https://download.kde.org/%{stable_kf6}/plasma/%{maj_ver_kf6}.%{min_ver_
 Source1: https://download.kde.org/%{stable_kf6}/plasma/%{maj_ver_kf6}.%{min_ver_kf6}.%{bug_ver_kf6}/%{name}-%{version}.tar.xz.sig
 
 ## upstream patches
-# https://invent.kde.org/plasma/kwin/-/merge_requests/9278
-Patch0:  9278.patch
 
 ## proposed patches
 
@@ -282,6 +280,11 @@ ln -sr %{buildroot}%{_kf6_bindir}/kwin_wayland %{buildroot}%{_bindir}/kwin
 
 
 %changelog
+* Fri Oct 30 2026 zaravi - 6.7.5-1000
+- 6.7.5
+- Drop the 9278 patch: the NVIDIA DRM colorop fix was merged upstream and is
+  included in Fedora's kwin 6.7.5
+
 * Thu May 14 2026 Steve Cossette <farchord@gmail.com> - 6.6.5-1
 - 6.6.5
 
