@@ -63,3 +63,10 @@ dnf5 -y remove \
     wayland-devel \
     libdrm-devel \
     rpm-build
+
+kwin_version="$(rpm -q --qf '%{version}' kwin)"
+plasma_version="$(rpm -q --qf '%{version}' plasma-workspace)"
+if [[ "${kwin_version}" != "${plasma_version}" ]]; then
+    echo "FATAL: kwin ${kwin_version} does not match Plasma ${plasma_version}; copr kwin leaked in" >&2
+    exit 1
+fi

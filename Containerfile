@@ -123,7 +123,7 @@ RUN --mount=type=cache,dst=/var/cache \
     eval "$(/ctx/dnf5-setopt setopt '*negativo17*' priority=4 exclude='mesa-* *xone*')" && \
     dnf5 -y config-manager setopt "*fedora*".exclude="mesa-* kernel-core-* kernel-modules-* kernel-uki-virt-* steam noopenh264 mangohud" && \
     dnf5 -y config-manager setopt "updates*".exclude="noopenh264 mangohud" && \
-    dnf5 -y config-manager setopt "*bazzite*".exclude="mangohud" && \
+    dnf5 -y config-manager setopt "*bazzite*".exclude="mangohud kwin*" && \
     dnf5 -y config-manager setopt "*audinux*".exclude="kernel*" && \
     dnf5 -y config-manager setopt "*staging*".exclude="scx-tools scx-scheds kf6-* mesa* mutter*" && \
     if grep -q "kinoite" <<< "${BASE_IMAGE_NAME}"; then \
@@ -452,16 +452,6 @@ RUN --mount=type=cache,dst=/var/cache \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=secret,id=GITHUB_TOKEN \
     /ctx/install-extra && \
-    /ctx/cleanup
-
-# Replace the stale copr-pinned kwin with Fedora's build so it matches the
-# rest of Plasma; see build_files/fix-kwin
-RUN --mount=type=cache,dst=/var/cache \
-    --mount=type=cache,dst=/var/cache/libdnf5 \
-    --mount=type=cache,dst=/var/log \
-    --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/tmp \
-    /ctx/fix-kwin && \
     /ctx/cleanup
 
 # Build kwin-effects-better-blur-dx
