@@ -634,9 +634,24 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
+  build-system76:
+    name: Build System76 derivative
+    needs: [version, push-ghcr]
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/build_system76.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit
+
   generate_release:
     name: Generate Release
-    needs: [push-ghcr]
+    needs: [push-ghcr, build-system76]
     if: github.event_name != 'pull_request'
     permissions:
       contents: write

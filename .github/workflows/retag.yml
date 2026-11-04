@@ -63,3 +63,4 @@ jobs:
             bazzite-gnome-nvidia-open:${{ inputs.old_tag }}         => bazzite-gnome-nvidia-open:latest,stable,${{ env.ver }}
             bazzite-nvidia:${{ inputs.old_tag }}                    => bazzite-nvidia:latest,stable,${{ env.ver }}
             bazzite-nvidia-open:${{ inputs.old_tag }}               => bazzite-nvidia-open:latest,stable,${{ env.ver }}
+            bazzite-system76-nvidia-open:${{ inputs.old_tag }}       => bazzite-system76-nvidia-open:latest,stable,${{ env.ver }}

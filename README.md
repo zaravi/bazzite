@@ -89,6 +89,19 @@ or for devices with Nvidia GPUs wanting the **NVIDIA Proprietary Drivers**:
 rpm-ostree rebase ostree-unverified-registry:ghcr.io/ublue-os/bazzite-nvidia:stable
 ```
 
+For System76 laptops with NVIDIA GPUs, use the System76-specific NVIDIA Open image (includes System76 firmware and power support; intended for proprietary-firmware models such as the Oryx Pro oryp7):
+
+```bash
+rpm-ostree rebase ostree-unverified-registry:ghcr.io/ublue-os/bazzite-system76-nvidia-open:stable
+```
+
+After rebasing, add your user to `adm` for firmware-manager access and reboot to complete DKMS setup:
+
+```bash
+sudo gpasswd -a "$USER" adm
+sudo systemctl reboot
+```
+
 **For users with Secure Boot enabled:** Follow our [secure boot documentation](#secure-boot) prior to rebasing.
 
 ### Steam Deck/Home Theater PCs (HTPCs)

@@ -1,0 +1,296 @@
+name: Build System76 derivative
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version tag of the already-published base image
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  build-system76:
+    name: Build System76 image
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      REPO_OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Show disk space
+        run: sudo df -h
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Login to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | podman login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Pull base image and prepare build arguments
+        env:
+          BASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          REPO_OWNER_LOWER="${REPO_OWNER,,}"
+          BASE_IMAGE="ghcr.io/${REPO_OWNER_LOWER}/bazzite-nvidia-open:${BASE_VERSION}"
+          OUTPUT_IMAGE="ghcr.io/${REPO_OWNER_LOWER}/bazzite-system76-nvidia-open"
+
+          podman pull "$BASE_IMAGE"
+          IMAGE_INFO="$(podman run --rm "$BASE_IMAGE" cat /usr/share/ublue-os/image-info.json)"
+          IMAGE_INFO_VERSION="$(jq -r '.version' <<< "$IMAGE_INFO")"
+          VERSION_PRETTY="$(jq -r '."version-pretty"' <<< "$IMAGE_INFO")"
+          BASE_IMAGE_NAME="$(jq -r '."base-image-name"' <<< "$IMAGE_INFO")"
+          FEDORA_VERSION="$(jq -r '."fedora-version"' <<< "$IMAGE_INFO")"
+          OCI_VERSION="$(podman image inspect --format '{{ index .Labels "org.opencontainers.image.version" }}' "$BASE_IMAGE")"
+
+          if [[ "$OCI_VERSION" != "$BASE_VERSION" ]]; then
+            echo "Base image OCI version ($OCI_VERSION) does not match requested version ($BASE_VERSION)" >&2
+            exit 1
+          fi
+
+          cat <<EOF > build_args.txt
+          BASE_IMAGE=${BASE_IMAGE}
+          IMAGE_NAME=bazzite-system76-nvidia-open
+          IMAGE_VENDOR=${REPO_OWNER_LOWER}
+          IMAGE_BRANCH=${GITHUB_REF_NAME}
+          BASE_IMAGE_NAME=${BASE_IMAGE_NAME}
+          FEDORA_VERSION=${FEDORA_VERSION}
+          VERSION_TAG=${IMAGE_INFO_VERSION}
+          VERSION_PRETTY=${VERSION_PRETTY}
+          EOF
+
+          echo "OUTPUT_IMAGE=${OUTPUT_IMAGE}" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=${BASE_VERSION}" >> "$GITHUB_ENV"
+          echo "FEDORA_VERSION=${FEDORA_VERSION}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=bazzite-system76-nvidia-open" >> "$GITHUB_ENV"
+
+      - name: Build System76 image from published Bazzite image
+        run: |
+          buildah build \
+            --file System76.Containerfile \
+            --target bazzite-system76 \
+            --build-arg-file build_args.txt \
+            --tag raw-img .
+
+      - name: Apply image labels
+        env:
+          IMAGE_LABELS: |
+            io.artifacthub.package.logo-url=https://raw.githubusercontent.com/ublue-os/bazzite/main/repo_content/logo.png
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/ublue-os/bazzite/refs/heads/main/README.md
+            org.opencontainers.image.description=Bazzite with System76 laptop support, based on the NVIDIA Open image.
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://bazzite.gg
+            org.opencontainers.image.title=Bazzite System76 NVIDIA Open
+            org.opencontainers.image.vendor=Universal Blue
+            org.opencontainers.image.url=https://bazzite.gg
+        run: |
+          set -euo pipefail
+
+          kver=$(podman run --rm raw-img rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}\n" kernel-core)
+          mapfile -t labels <<< "$IMAGE_LABELS"
+          labels+=(
+            "org.opencontainers.image.version=${VERSION_TAG}"
+            "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            "ostree.bootable=true"
+            "ostree.linux=${kver}"
+          )
+          : > "${RUNNER_TEMP}/labels.txt"
+          for line in "${labels[@]}"; do
+            [[ -z "$line" ]] || printf '%s\n' "$line" >> "${RUNNER_TEMP}/labels.txt"
+          done
+
+          cat "${RUNNER_TEMP}/labels.txt"
+
+      - name: Rechunk image
+        id: rechunk
+        run: |
+          set -euo pipefail
+
+          buildah unshare bash -euo pipefail -c '
+            container=$(buildah from raw-img)
+            mnt=$(buildah mount "$container")
+            rm -rf "$mnt"/run/.* "$mnt"/run/* "$mnt"/tmp/.* "$mnt"/tmp/* || true
+            buildah umount "$container"
+            buildah commit --identity-label=false --rm "$container" raw-img
+          '
+
+          RECHUNK_DIR="$(mktemp -d "${RUNNER_TEMP}/rechunk-XXXXXX")"
+          trap 'rm -rf "${RECHUNK_DIR}"' EXIT
+
+          label_args=()
+          while IFS= read -r line; do
+            [[ -z "$line" ]] || label_args+=(--label "$line")
+          done < "${RUNNER_TEMP}/labels.txt"
+
+          podman run --rm \
+            --pull=never \
+            --privileged \
+            --mount=type=image,src=localhost/raw-img,target=/rpm-ostree \
+            --volume "${RECHUNK_DIR}:/run/out:Z" \
+            --entrypoint /usr/bin/rpm-ostree \
+            localhost/raw-img \
+            compose build-chunked-oci \
+            --bootc --max-layers 127 --format-version 2 \
+            "${label_args[@]}" \
+            --rootfs /rpm-ostree --output oci-archive:/run/out/chunked.oci
+
+          podman rmi -f localhost/raw-img
+          chunked=$(podman pull oci-archive:"${RECHUNK_DIR}/chunked.oci")
+          podman tag "${chunked}" localhost/chunked-img
+          echo "ref=containers-storage:localhost/chunked-img" >> "$GITHUB_OUTPUT"
+
+      - name: Install dgoss
+        run: |
+          set -euo pipefail
+          GOSS_VERSION=v0.4.10
+          curl -fL \
+            "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss_${GOSS_VERSION#v}_linux_x86_64.tar.gz" \
+            -o /tmp/goss.tar.gz
+          tar -xzf /tmp/goss.tar.gz -C /usr/local/bin goss
+          chmod +rx /usr/local/bin/goss
+          /usr/local/bin/goss --version >/dev/null
+          rm -f /tmp/goss.tar.gz
+          curl -fL \
+            "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/dgoss" \
+            -o /usr/local/bin/dgoss
+          chmod +rx /usr/local/bin/dgoss
+
+      - name: Run image tests
+        run: tests/dgoss/dgoss-tests.sh tests/dgoss/tests.d "${{ steps.rechunk.outputs.ref }}"
+
+      - name: Setup Syft
+        id: setup-syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.44.0
+
+      - name: Generate SBOM
+        id: generate-sbom
+        env:
+          SYFT_CMD: ${{ steps.setup-syft.outputs.cmd }}
+          OCI_DIR: ${{ runner.temp }}/system76-image-oci-dir
+        run: |
+          set -euo pipefail
+          mkdir -p "${OCI_DIR}/rootfs"
+          podman container create --replace --name "${IMAGE_NAME}" localhost/chunked-img
+          podman export "${IMAGE_NAME}" | tar -C "${OCI_DIR}/rootfs" --no-same-owner -xf -
+          podman container rm "${IMAGE_NAME}"
+          chmod -R u+rwX "${OCI_DIR}"
+
+          SBOM="$(mktemp -d)/sbom.json"
+          export SYFT_PARALLELISM=$(($(nproc) * 2))
+          "$SYFT_CMD" --source-name "${IMAGE_NAME}-${VERSION_TAG}" "${OCI_DIR}/rootfs" -o syft-json="${SBOM}"
+          echo "SBOM=${SBOM}" >> "$GITHUB_OUTPUT"
+          rm -rf "${OCI_DIR}"
+
+      - name: Generate image tags
+        id: generate-tags
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_NAME}" == "unstable" ]]; then
+            BUILD_TAGS=("unstable" "unstable-${FEDORA_VERSION}")
+          elif [[ "${GITHUB_REF_NAME}" == "testing" ]]; then
+            BUILD_TAGS=("testing" "testing-${FEDORA_VERSION}")
+          else
+            BUILD_TAGS=("stable-${VERSION_TAG}" "latest" "stable" "stable-${FEDORA_VERSION}")
+          fi
+          echo "alias_tags=${BUILD_TAGS[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Push image to GHCR
+        id: push
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        env:
+          ALIAS_TAGS: ${{ steps.generate-tags.outputs.alias_tags }}
+          OUTPUT_IMAGE: ${{ env.OUTPUT_IMAGE }}
+          RECHUNK_REF: ${{ steps.rechunk.outputs.ref }}
+          VERSION: ${{ env.VERSION_TAG }}
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: |
+            set -euo pipefail
+            log_sum() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+            log_sum '# Push System76 image to GHCR'
+            log_sum '```'
+            podman push --digestfile=/tmp/digestfile \
+              "${RECHUNK_REF#containers-storage:}" "docker://${OUTPUT_IMAGE}:${VERSION}"
+            digest="$(< /tmp/digestfile)"
+            [[ -n "$digest" ]] || { echo "Push produced no digest" >&2; exit 1; }
+            log_sum "${OUTPUT_IMAGE}:${VERSION}"
+            for tag in ${ALIAS_TAGS}; do
+              skopeo copy "docker://${OUTPUT_IMAGE}@${digest}" "docker://${OUTPUT_IMAGE}:${tag}"
+              log_sum "${OUTPUT_IMAGE}:${tag}"
+            done
+            log_sum '```'
+            echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.3"
+
+      - name: Sign container image
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY \
+            --new-bundle-format=false --use-signing-config=false \
+            "${OUTPUT_IMAGE}@${IMAGE_DIGEST}"
+
+      - name: Install ORAS
+        uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+
+      - name: Login to GitHub Container Registry with ORAS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | oras login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Upload SBOM
+        id: upload-sbom
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          SBOM: ${{ steps.generate-sbom.outputs.SBOM }}
+        run: |
+          set -euo pipefail
+          cd "$(dirname "${SBOM}")"
+          oras attach \
+            --artifact-type application/vnd.spdx+json \
+            --annotation filename="$(basename "${SBOM}")" \
+            "${OUTPUT_IMAGE}@${DIGEST}" \
+            "$(basename "${SBOM}")"
+          sbom_digest=$(oras discover --format json "${OUTPUT_IMAGE}@${DIGEST}" | jq -r '.referrers[] | select(.artifactType == "application/vnd.spdx+json") | .digest')
+          echo "sbom_digest=${sbom_digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign SBOM OCI artifact
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          IMAGE: ${{ env.OUTPUT_IMAGE }}
+          SBOM_DIGEST: ${{ steps.upload-sbom.outputs.sbom_digest }}
+        run: |
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY \
+            --new-bundle-format=false --use-signing-config=false \
+            "${IMAGE}@${SBOM_DIGEST}"
+
+      - name: Attest image provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.OUTPUT_IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

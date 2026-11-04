@@ -538,6 +538,7 @@ RUN --mount=type=cache,dst=/var/cache \
         ublue-os/staging \
         ublue-os/packages \
         ycollet/audinux \
+        patrickl/wine-tkg \
         che/nerd-fonts; \
     do \
         dnf5 -y copr disable $copr; \
@@ -862,14 +863,6 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y swap \
         --repo terra-extras \
             waydroid waydroid-nvidia && \
-    /ctx/cleanup
-
-# Install System76 drivers
-RUN --mount=type=cache,dst=/var/cache \
-    --mount=type=cache,dst=/var/log \
-    --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/tmp \
-    /ctx/install-system76 && \
     /ctx/cleanup
 
 # Cleanup & Finalize
