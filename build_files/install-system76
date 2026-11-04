@@ -8,20 +8,19 @@ trap 'echo "::endgroup::"' EXIT
 dnf5 -y copr enable szydell/system76
 
 # Install the System76 Driver first, as required by the Fedora instructions.
-dnf5 -y install system76-driver
+if ! rpm -q system76-driver >/dev/null 2>&1; then
+    dnf5 -y install system76-driver
+fi
 
-# Oryx Pro oryp7: proprietary firmware, non-OLED display, and no Thelio I/O.
 dnf5 -y install \
     firmware-manager \
     system76-firmware \
-    system76-power \
-    system76-dkms
+    system76-power
 
 systemctl enable \
     system76-firmware-daemon.service \
     com.system76.PowerDaemon.service \
-    system76-power-wake \
-    dkms
+    system76-power-wake
 systemctl mask power-profiles-daemon.service
 
 dnf5 -y copr disable szydell/system76
