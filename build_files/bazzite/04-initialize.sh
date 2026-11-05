@@ -75,7 +75,7 @@ dnf5 -y config-manager setopt "*bazzite*".priority=2
 eval "$(/ctx/tools/dnf5-setopt setopt '*negativo17*' priority=4 exclude='mesa-* *xone*')"
 
 dnf5 -y config-manager \
-    setopt "*fedora*.exclude=mesa-* kernel-core-* kernel-modules-* kernel-uki-virt-* steam noopenh264"
+    setopt "fedora*.exclude=mesa-* kernel-core-* kernel-modules-* kernel-uki-virt-* steam noopenh264"
 
 dnf5 -y config-manager setopt "updates*.exclude=noopenh264"
 

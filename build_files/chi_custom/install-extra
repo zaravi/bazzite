@@ -58,20 +58,18 @@ rm -rf /tmp/bitwig-beta
 cd /
 rm -rf /bitwig-fedora
 
-# Install yabridge and its matching Wine Staging 9.21 build from the COPR
-# recommended by yabridge's Fedora instructions. The yabridge package includes yabridgectl.
-dnf5 -y copr enable patrickl/wine-tkg
+# Install the current Fedora 45-supported Wine/Yabridge stack. DXVK is omitted
+# because it overrides patches in this COPR's Wine build.
+dnf5 -y copr enable patrickl/wine-staging-dev
 dnf5 clean all
 dnf5 -y install --refresh \
-    wine.x86_64 \
-    wine.i686 \
+    wine \
     wine-mono \
-    mingw32-wine-gecko \
-    mingw64-wine-gecko \
-    wine-dxvk \
     yabridge \
+    yabridge-tui \
+    winetricks \
     libcurl-gnutls
-dnf5 -y copr disable patrickl/wine-tkg
+dnf5 -y copr disable patrickl/wine-staging-dev
 
 # These are in the fedora repos. Keeping these here because they're related to the extra stuff in here.
 dnf5 -y install \
