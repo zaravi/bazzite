@@ -22,7 +22,11 @@ dnf5 -y install \
     scx-tools \
     bpftune \
     bpfrag \
+    fuse \
     fuse-libs \
+    git \
+    newt \
+    zenity \
     uld \
     bazaar \
     greenboot \

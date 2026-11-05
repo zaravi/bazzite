@@ -41,8 +41,6 @@ dnf5 -y install \
     ibus-table-chinese-quick \
     socat \
     zstd \
-    zenity \
-    newt \
     qt6-qtvirtualkeyboard \
     xorg-x11-server-Xvfb \
     python-vdf \
