@@ -5,6 +5,27 @@ command:
     stdout:
       - "dgoss smoketest"
 
+  system76_image_masks_conflicting_power_managers:
+    exec: |
+      sh -lc '
+      . /usr/lib/os-release
+      case "${VARIANT_ID:-}" in
+        *system76*) ;;
+        *) echo "SKIP: not a System76 image"; exit 0 ;;
+      esac
+      for unit in power-profiles-daemon.service tuned-ppd.service tuned.service; do
+        target="/etc/systemd/system/$unit"
+        if [ ! -L "$target" ] || [ "$(readlink "$target")" != /dev/null ]; then
+          echo "FAIL: $unit is not masked"
+          exit 1
+        fi
+      done
+      echo "OK: conflicting power managers are masked"
+      '
+    exit-status: 0
+    stdout:
+      - "/^(OK|SKIP):/"
+
   bazzite_hardware_setup_has_valid_shell_syntax:
     exec: "/usr/bin/bash -n /usr/libexec/bazzite-hardware-setup"
     exit-status: 0

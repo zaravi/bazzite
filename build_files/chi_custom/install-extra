@@ -30,6 +30,10 @@ dnf5 -y install \
     mullvad-browser \
     niri
 
+if [[ "${BASE_IMAGE_NAME}" == *kinoite* ]]; then
+    dnf5 -y install kde-partitionmanager
+fi
+
 # Install both stable and beta versions of Bitwig Studio, this could be moved to another file in the future, but depends on libjpeg.so.8 from the copr here.
 # It'd be best to separate concerns and have install-bitwig, install-virtualization, etc. files instead of one install-extra. There's not too much here to do that yet.
 dnf5 -y install rpm-build cpio
@@ -67,6 +71,7 @@ dnf5 -y install --refresh \
     wine-dxvk \
     yabridge \
     libcurl-gnutls
+dnf5 -y copr disable patrickl/wine-tkg
 
 # These are in the fedora repos. Keeping these here because they're related to the extra stuff in here.
 dnf5 -y install \

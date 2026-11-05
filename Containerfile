@@ -121,9 +121,9 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y config-manager setopt "terra-mesa".enabled=false && \
     dnf5 -y config-manager setopt "*bazzite*".priority=2 && \
     eval "$(/ctx/dnf5-setopt setopt '*negativo17*' priority=4 exclude='mesa-* *xone*')" && \
-    dnf5 -y config-manager setopt "*fedora*".exclude="mesa-* kernel-core-* kernel-modules-* kernel-uki-virt-* steam noopenh264 mangohud" && \
-    dnf5 -y config-manager setopt "updates*".exclude="noopenh264 mangohud" && \
-    dnf5 -y config-manager setopt "*bazzite*".exclude="mangohud kwin*" && \
+    dnf5 -y config-manager setopt "*fedora*".exclude="mesa-* kernel-core-* kernel-modules-* kernel-uki-virt-* steam noopenh264" && \
+    dnf5 -y config-manager setopt "updates*".exclude="noopenh264" && \
+    /ctx/chi_custom/configure-repositories && \
     dnf5 -y config-manager setopt "*audinux*".exclude="kernel*" && \
     dnf5 -y config-manager setopt "*staging*".exclude="scx-tools scx-scheds kf6-* mesa* mutter*" && \
     if grep -q "kinoite" <<< "${BASE_IMAGE_NAME}"; then \
@@ -141,27 +141,19 @@ RUN --mount=type=cache,dst=/var/cache \
     dnf5 -y remove \
         pipewire-config-raop \
         mesa-va-drivers && \
-    dnf5 -y swap --from-repo=terra-mesa \
-        mesa-vulkan-drivers mesa-vulkan-drivers && \
-    dnf5 -y swap --from-repo=terra-mesa \
-        mesa-libEGL mesa-libEGL && \
+    declare -A toswap=( \
+        ["terra-mesa"]="mesa-filesystem" \
+    ) && \
+     for repo in "${!toswap[@]}"; do \
+        for package in ${toswap[$repo]}; do dnf5 -y swap --from-repo=$repo $package $package; done; \
+    done && unset -v toswap repo package && \
     dnf5 -y swap --allowerasing \
         --repo terra-extras \
             xorg-x11-server-Xwayland terra-xorg-x11-server-Xwayland && \
     dnf5 -y swap --allowerasing \
         --repo terra-extras \
             wireplumber terra-wireplumber && \
-    dnf5 -y --enable-repo=terra-mesa install \
-        vulkan-loader.i686 \
-        mesa-filesystem.i686 \
-        mesa-vulkan-drivers.i686 \
-        mesa-libEGL.i686 \
-        intel-opencl \
-        clinfo && \
-    rpm -q mesa-vulkan-drivers.x86_64 mesa-vulkan-drivers.i686 \
-        mesa-libEGL.x86_64 mesa-libEGL.i686 libglvnd-egl >/dev/null || { \
-        echo "FATAL: terra mesa multilib stack incomplete" >&2; exit 1; \
-    } && \
+    /ctx/chi_custom/install-terra-mesa && \
     dnf5 versionlock add \
         terra-xorg-x11-server-Xwayland \
         mesa-dri-drivers \
@@ -170,6 +162,10 @@ RUN --mount=type=cache,dst=/var/cache \
         mesa-libGL \
         mesa-libgbm \
         mesa-vulkan-drivers && \
+    dnf5 --enable-repo=terra-mesa -y install \
+        mesa-libEGL.i686 \
+        intel-opencl \
+        clinfo && \
     dnf5 -y install \
         libfreeaptx && \
     dnf5 -y install --enable-repo="*fedora-multimedia*" --allowerasing \
@@ -444,27 +440,28 @@ RUN --mount=type=cache,dst=/var/cache \
     { systemctl enable ublue-os-media-automount.service || true; } && \
     /ctx/cleanup
 
-# Install extra
+# Fork-specific package additions
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=cache,dst=/var/log \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=secret,id=GITHUB_TOKEN \
-    /ctx/install-extra && \
+    /ctx/chi_custom/install-extra && \
     /ctx/cleanup
 
-# Build kwin-effects-better-blur-dx
+# Fork-specific KWin effect
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=cache,dst=/var/log \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/build-kwin-effects-better-blur-dx && \
+    /ctx/chi_custom/build-kwin-effects-better-blur-dx && \
     /ctx/cleanup
 
 # Cleanup & Finalize
 COPY system_files/overrides /
+COPY build_files/chi_custom/system_files/overrides /
 
 RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
@@ -538,7 +535,6 @@ RUN --mount=type=cache,dst=/var/cache \
         ublue-os/staging \
         ublue-os/packages \
         ycollet/audinux \
-        patrickl/wine-tkg \
         che/nerd-fonts; \
     do \
         dnf5 -y copr disable $copr; \

@@ -21,6 +21,12 @@ systemctl enable \
     system76-firmware-daemon.service \
     com.system76.PowerDaemon.service \
     system76-power-wake
-systemctl mask power-profiles-daemon.service
+# System76 Power provides the power-profile D-Bus interfaces itself. Disable
+# both Fedora's TuneD compatibility service and TuneD, which can otherwise
+# claim those interfaces or reapply competing power settings.
+systemctl mask \
+    power-profiles-daemon.service \
+    tuned-ppd.service \
+    tuned.service
 
 dnf5 -y copr disable szydell/system76

@@ -18,7 +18,7 @@ RUN --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/install-system76 && \
+    /ctx/chi_custom/install-system76 && \
     /ctx/cleanup && \
     /ctx/image-info && \
     /ctx/build-initramfs && \

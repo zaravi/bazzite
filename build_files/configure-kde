@@ -6,7 +6,6 @@ set -eoux pipefail
 dnf5 -y install \
   qt \
   steamdeck-kde-presets-desktop \
-  kde-partitionmanager \
   rom-properties-kf6 \
   fcitx5-{chewing,chinese-addons,hangul,m17n,mozc,table-extra} \
   kcm-fcitx5 \
@@ -25,6 +24,7 @@ dnf5 -y remove \
   plasma-discover-kns \
   plasma-setup \
   kcharselect \
+  kde-partitionmanager \
   plasma-discover{,-libs}
 
 sed -i '$r /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/bazzite-pins.js' /usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js

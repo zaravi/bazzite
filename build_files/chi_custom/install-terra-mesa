@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+
+set -eoux pipefail
+
+dnf5 -y swap --from-repo=terra-mesa \
+    mesa-vulkan-drivers mesa-vulkan-drivers
+dnf5 -y swap --from-repo=terra-mesa \
+    mesa-libEGL mesa-libEGL
+dnf5 -y --enable-repo=terra-mesa install \
+    vulkan-loader.i686 \
+    mesa-filesystem.i686 \
+    mesa-vulkan-drivers.i686 \
+    mesa-libEGL.i686 \
+    intel-opencl \
+    clinfo
+
+rpm -q mesa-vulkan-drivers.x86_64 mesa-vulkan-drivers.i686 \
+    mesa-libEGL.x86_64 mesa-libEGL.i686 libglvnd-egl >/dev/null || {
+    echo "FATAL: terra mesa multilib stack incomplete" >&2
+    exit 1
+}
