@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+install -D -m 0644 \
+    /ctx/chi_custom/system_files/overrides/usr/lib/bootc/kargs.d/50-threadirqs.toml \
+    /usr/lib/bootc/kargs.d/50-threadirqs.toml

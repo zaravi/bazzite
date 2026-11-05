@@ -9,7 +9,7 @@ ARG IMAGE_NAME="bazzite-system76-nvidia-open"
 ARG IMAGE_VENDOR="ublue-os"
 ARG IMAGE_BRANCH="stable"
 ARG BASE_IMAGE_NAME="kinoite"
-ARG FEDORA_VERSION="44"
+ARG FEDORA_VERSION="45"
 ARG VERSION_TAG
 ARG VERSION_PRETTY
 
@@ -19,8 +19,8 @@ RUN --mount=type=cache,dst=/var/cache \
     --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/chi_custom/install-system76 && \
-    /ctx/cleanup && \
-    /ctx/image-info && \
-    /ctx/build-initramfs && \
-    /ctx/finalize && \
+    /ctx/image-info.sh && \
+    /ctx/build-initramfs.sh && \
+    /ctx/finalize.sh && \
+    /ctx/cleanup.sh && \
     bootc container lint
